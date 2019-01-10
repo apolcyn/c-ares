@@ -437,10 +437,15 @@ static int init_by_options(ares_channel channel,
   /* Easy stuff. */
   if ((optmask & ARES_OPT_FLAGS) && channel->flags == -1)
     channel->flags = options->flags;
-  if ((optmask & ARES_OPT_TIMEOUTMS) && channel->timeout == -1)
+  if ((optmask & ARES_OPT_TIMEOUTMS) && channel->timeout == -1) {
+    fprintf(stderr, "setting timeout = %d\n", options->timeout);
     channel->timeout = options->timeout;
-  else if ((optmask & ARES_OPT_TIMEOUT) && channel->timeout == -1)
+  } else if ((optmask & ARES_OPT_TIMEOUT) && channel->timeout == -1) {
+    fprintf(stderr, "setting timeout = %d\n", options->timeout);
     channel->timeout = options->timeout * 1000;
+  } else {
+    fprintf(stderr, "DIDNT setting timeout. options:%x. channel->timeout:%d. optmask:%d\n", options->flags, channel->timeout, optmask);
+  }
   if ((optmask & ARES_OPT_TRIES) && channel->tries == -1)
     channel->tries = options->tries;
   if ((optmask & ARES_OPT_NDOTS) && channel->ndots == -1)

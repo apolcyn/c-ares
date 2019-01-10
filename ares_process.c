@@ -546,6 +546,7 @@ static void process_timeouts(ares_channel channel, struct timeval *now)
    * queries that fall into future buckets, and only a handful of requests
    * that fall into the "now" bucket, so this should be quite quick.
    */
+  fprintf(stderr, "process_timeouts BEGIN. last_timeout_processed:%ld. now->tv_sec:%ld\n", channel->last_timeout_processed, now->tv_sec);
   for (t = channel->last_timeout_processed; t <= now->tv_sec; t++)
     {
       list_head = &(channel->queries_by_timeout[t % ARES_TIMEOUT_TABLE_SIZE]);
@@ -555,12 +556,17 @@ static void process_timeouts(ares_channel channel, struct timeval *now)
           list_node = list_node->next;  /* in case the query gets deleted */
           if (query->timeout.tv_sec && ares__timedout(now, &query->timeout))
             {
+              fprintf(stderr, "process_timeouts query TIMED OUT\n");
               query->error_status = ARES_ETIMEOUT;
               ++query->timeouts;
               next_server(channel, query, now);
             }
+          else {
+            fprintf(stderr, "process_timeouts query didn't yet time out\n");
+          }
         }
      }
+  fprintf(stderr, "process_timeouts DONE\n");
   channel->last_timeout_processed = now->tv_sec;
 }
 
@@ -871,14 +877,36 @@ void ares__send_query(ares_channel channel, struct query *query,
           return;
         }
     }
-    timeplus = channel->timeout << (query->try_count / channel->nservers);
-    timeplus = (timeplus * (9 + (rand () & 7))) / 16;
+    timeplus = channel->timeout;// << (query->try_count / channel->nservers);
+    int shift = 0;
+
+    {
+      /* How many times do we want to double it?  Presume sane values here. */
+      shift = query->try_count / channel->nservers;
+
+      /* Is there enough room to shift timeplus left that many times?
+       *
+       * To find out, confirm that all of the bits we'll shift away are zero.
+       * Stop considering a shift if we get to the point where we could shift
+       * a 1 into the sign bit (i.e. when shift is within two of the bit
+       * count).
+       *
+       * This has the side benefit of leaving negative numbers unchanged.
+       */
+      if(shift <= (int)(sizeof(int) * CHAR_BIT - 1)
+         && (timeplus >> (sizeof(int) * CHAR_BIT - 1 - shift)) == 0)
+      {
+        timeplus <<= shift;
+      }
+    }
+    //timeplus = (timeplus * (9 + (rand () & 7))) / 16;
     query->timeout = *now;
     timeadd(&query->timeout, timeplus);
     /* Keep track of queries bucketed by timeout, so we can process
      * timeout events quickly.
      */
     ares__remove_from_list(&(query->queries_by_timeout));
+    fprintf(stderr, "inserting query into timeout bucket at hash:%ld. timeplus:%d. try_count:%d shift:%d channel->timeout:%d\n", query->timeout.tv_sec, timeplus, query->try_count, shift, channel->timeout);
     ares__insert_in_list(
         &(query->queries_by_timeout),
         &(channel->queries_by_timeout[query->timeout.tv_sec %
