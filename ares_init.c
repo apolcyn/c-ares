@@ -109,7 +109,7 @@ int ares_init(ares_channel *channelptr)
 int ares_init_options(ares_channel *channelptr, struct ares_options *options,
                       int optmask)
 {
-  ares_channel channel;
+  ares_channel channel; DOES NOT COMPILE
   int i;
   int status = ARES_SUCCESS;
   struct timeval now;
